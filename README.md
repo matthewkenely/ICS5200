@@ -1,2 +1,2 @@
 # ICS5200
-M.Sc. Artificial Intelligence Thesis
+M.Sc. Artificial Intelligence Dissertation
