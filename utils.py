@@ -1,75 +1,62 @@
-import os
-import sys
-
-import numpy as np
-import pandas as pd
-
 import torch
 import torch.nn as nn
-import torchvision.models as models
-import torch.optim as optim
-from torch.utils.data import DataLoader
-from torch.utils.data import Dataset
-from torchvision import transforms
-from torchvision.datasets import ImageFolder
-
-from PIL import Image
-
-from tqdm import tqdm
-
-from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import StandardScaler
-
-import matplotlib.pyplot as plt
-from random import randint
+import torch.nn.functional as F
 
 class EmotionClassifier(nn.Module):
-    def __init__(self, num_classes=7):
+    def __init__(self, num_classes=7):  # Adjust `num_classes` based on your dataset
         super(EmotionClassifier, self).__init__()
         
-        # Load the pre-trained ResNet50 model
-        self.resnet = models.resnet101(pretrained=True)
+        # Define the layers
+        self.conv1 = nn.Conv2d(1, 32, kernel_size=3, stride=1, padding=1)  # 1 input channel (grayscale), 32 filters
+        self.bn1 = nn.BatchNorm2d(32)
+        
+        self.conv2 = nn.Conv2d(32, 64, kernel_size=3, stride=1, padding=1)
+        self.bn2 = nn.BatchNorm2d(64)
+        
+        self.conv3 = nn.Conv2d(64, 128, kernel_size=3, stride=1, padding=1)
+        self.bn3 = nn.BatchNorm2d(128)
+        
+        self.conv4 = nn.Conv2d(128, 256, kernel_size=3, stride=1, padding=1)
+        self.bn4 = nn.BatchNorm2d(256)
+        
+        # Fully connected layers
+        self.fc1 = nn.Linear(2304, 256)  # Adjust based on output size after conv layers
+        self.fc_bn1 = nn.BatchNorm1d(256)
+        self.fc2 = nn.Linear(256, num_classes)
 
-        # Modify the ResNet model to accept grayscale images
-        self.resnet.conv1 = nn.Conv2d(1, 64, kernel_size=(7, 7), stride=(2, 2), padding=(3, 3), bias=False)
+        # Dropout layers
+        self.dropout_conv = nn.Dropout(0.25)
+        self.dropout_fc = nn.Dropout(0.5)
 
-        # Remove the final fully connected layer
-        self.resnet = nn.Sequential(*list(self.resnet.children())[:-1])  # Remove the last layer
 
-        # Freeze all layers of ResNet
-        for param in self.resnet.parameters():
-            param.requires_grad = False
-
-        # Unfreeze the last few layers for fine-tuning
-        for layer in list(self.resnet.children())[:]:  # Get the last two layers
-            for param in layer.parameters():  # Access parameters of the layer
-                param.requires_grad = True
-
-        # Add additional layers: 2 fully connected layers and an output layer
-        self.fc1 = nn.Linear(2048, 512)  # 2048 is the output of the last ResNet layer
-        self.bn1 = nn.BatchNorm1d(512)  # Batch normalization for the first fully connected layer
-        self.fc2 = nn.Linear(512, num_classes)
-        self.bn2 = nn.BatchNorm1d(num_classes)  # Batch normalization for the output layer
-
-        # Optional: Add dropout for regularization
-        self.dropout = nn.Dropout(p=0.5)
-
-        self.softmax = nn.Softmax(dim=1)
 
     def forward(self, x):
-        # Forward pass through the ResNet backbone
-        x = self.resnet(x)
-        x = x.view(x.size(0), -1)  # Flatten the output from ResNet
+        # Convolutional layers with batch normalization, ReLU, and max pooling
+        x = F.relu(self.bn1(self.conv1(x)))
+        x = F.max_pool2d(x, 2)
+        x = self.dropout_conv(x)
+        
+        x = F.relu(self.bn2(self.conv2(x)))
+        x = F.max_pool2d(x, 2)
+        x = self.dropout_conv(x)
+        
+        x = F.relu(self.bn3(self.conv3(x)))
+        x = F.max_pool2d(x, 2)
+        x = self.dropout_conv(x)
+        
+        x = F.relu(self.bn4(self.conv4(x)))
+        x = F.max_pool2d(x, 2)
+        x = self.dropout_conv(x)
 
-        # Forward pass through the additional fully connected layers with batch normalization
-        x = self.dropout(self.fc1(x))
-        x = self.bn1(x)
-        x = nn.ReLU()(x)
-
+        # Flatten
+        x = x.view(x.size(0), -1)  # Flatten the tensor
+        
+        # Fully connected layers with batch normalization, ReLU, and dropout
+        x = F.relu(self.fc_bn1(self.fc1(x)))
+        x = self.dropout_fc(x)
+        
+        # Output layer
         x = self.fc2(x)
-        x = self.bn2(x)
-
-        # Apply LogSoftmax to get log probabilities
-        x = self.softmax(x)
+        x = F.softmax(x, dim=1)
 
         return x
