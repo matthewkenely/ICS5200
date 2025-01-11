@@ -1,5 +1,4 @@
 # Siamese Network-Based Vector Embeddings of MRI Scans for Monozygotic Twin Identification
-M.Sc. Artificial Intelligence Dissertation
 
 # Introduction
 Convolutional Neural Networks (CNNs) and Vision Transformers (ViTs) have proven highly effective in analyzing Magnetic Resonance Imaging (MRI) scans. Their ability to learn intricate patterns and features makes them well-suited for medical applications such as brain tumor detection and classification, and numerous studies have shown their effectiveness in these tasks.
